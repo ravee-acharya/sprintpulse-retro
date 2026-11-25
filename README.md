@@ -158,6 +158,35 @@ Once you're logged in, also run the official server-side lint:
 forge lint
 ```
 
+## CI/CD (GitHub Actions)
+
+Repo: https://github.com/ravee-acharya/sprintpulse-retro (private). Workflow:
+`.github/workflows/deploy.yml`, the same shape as `ravee-acharya/worklog-report`.
+
+| Trigger | What runs |
+|---|---|
+| Push to `main` | **verify** → **deploy-development**: deploys and installs/upgrades on `dashtech.atlassian.net` (`--confirm-scopes`, development only) |
+| Actions → *Deploy SprintPulse Retro* → Run workflow → `development` | Same as a push |
+| Actions → Run workflow → `production` | **verify** → **deploy-production**: waits for the `production` environment's required reviewer, deploys, then upgrades each site in `FORGE_PROD_SITES` (no auto-granted scopes). Tick *approve_major_version* only for an intended major version. |
+
+**What `verify` runs:** `npm run ci`, which is:
+1. the UI build;
+2. manifest validation;
+3. `forge lint`;
+4. typecheck;
+5. tests;
+6. ESLint;
+7. the offline scope lint;
+8. semgrep (`.semgrep.yml`, the OWASP rules shared with worklog-report).
+
+Run `npm run ci` locally to reproduce it. It needs semgrep, plus `FORGE_EMAIL` and `FORGE_API_TOKEN` for `forge lint`.
+
+**Repo setup:**
+- Secrets: `FORGE_EMAIL` and `FORGE_API_TOKEN`, an Atlassian API token for the account that owns the app.
+- Environments: `development` (no rules) and `production` (required reviewer).
+- The Forge CLI is pinned with `FORGE_CLI_VERSION`. Bump it deliberately, after reading the release notes.
+- Once the app is installed from the production environment, add that site to `FORGE_PROD_SITES`.
+
 ## Deploy & install
 
 Run all of these from the app root (`sprintpulse-retro/`).
