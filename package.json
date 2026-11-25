@@ -18,7 +18,7 @@
     "security": "semgrep scan --config .semgrep.yml --severity ERROR --error --metrics off --quiet src static/retro-ui/src",
     "security:advisory": "semgrep scan --config .semgrep.yml --metrics off --quiet src static/retro-ui/src || true",
     "check": "npm run typecheck && npm run lint && npm test && npm run build && npm run validate:manifest && npm run lint:forge",
-    "ci": "npm run validate:manifest && forge lint --environment development && npm run typecheck && npm test && npm run lint && npm run lint:forge && npm run build && npm run security",
+    "ci": "npm run build && npm run validate:manifest && forge lint --environment development && npm run typecheck && npm test && npm run lint && npm run lint:forge && npm run security",
     "forge:lint": "forge lint",
     "deploy": "npm run check && forge deploy -e development --non-interactive",
     "tunnel": "forge tunnel"
