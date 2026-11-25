@@ -1,0 +1,336 @@
+modules:
+  jira:projectPage:
+    - key: sprintpulse-retro-project-page
+      resource: retro-ui
+      resolver:
+        function: resolver
+      title: SprintPulse Retro
+      icon: resource:retro-ui;icon.svg
+      layout: basic
+  function:
+    - key: resolver
+      handler: index.handler
+
+resources:
+  - key: retro-ui
+    path: static/retro-ui/dist
+    tunnel:
+      port: 5173
+
+permissions:
+  scopes:
+    # Classic scopes requested in the spec
+    - read:jira-work # sprints' issues, action-item status sync, analytics
+    - write:jira-work # one-click issue creation from action items
+    - read:jira-user # assignee picker
+    - storage:app # Forge KVS for boards, cards, votes, history
+    - write:confluence-content # optional "Publish to Confluence" export
+    # Granular scopes required by the Jira Software (agile) REST API
+    - read:board-scope:jira-software
+    - read:sprint:jira-software
+    - write:sprint:jira-software # optional "add new action issue to sprint"
+    - read:project:jira
+    # Confluence space lookup for the export target picker
+    - read:confluence-space.summary
+  content:
+    styles:
+      - unsafe-inline # dnd-kit + Tailwind runtime transforms
+
+app:
+  runtime:
+    name: nodejs22.x
+  # createdAt/updatedAt are epoch milliseconds: KVS `integer` is 32-bit, so they are `float`
+  # (exact for whole numbers up to 2^53). `version` stays integer.
+  storage:
+    entities:
+      - name: sp-board
+        attributes:
+          projectId:
+            type: string
+          createdAt:
+            type: float
+          status:
+            type: string
+          titleLower:
+            type: string
+          version:
+            type: integer
+          updatedAt:
+            type: float
+          doc:
+            type: any
+        indexes:
+          - name: by-project
+            partition:
+              - projectId
+            range:
+              - createdAt
+      - name: sp-card
+        attributes:
+          retroId:
+            type: string
+          createdAt:
+            type: float
+          version:
+            type: integer
+          updatedAt:
+            type: float
+          doc:
+            type: any
+        indexes:
+          - name: by-retro
+            partition:
+              - retroId
+            range:
+              - createdAt
+      - name: sp-group
+        attributes:
+          retroId:
+            type: string
+          createdAt:
+            type: float
+          version:
+            type: integer
+          updatedAt:
+            type: float
+          doc:
+            type: any
+        indexes:
+          - name: by-retro
+            partition:
+              - retroId
+            range:
+              - createdAt
+      - name: sp-ballot
+        attributes:
+          retroId:
+            type: string
+          accountId:
+            type: string
+          version:
+            type: integer
+          updatedAt:
+            type: float
+          doc:
+            type: any
+        indexes:
+          - name: by-retro
+            partition:
+              - retroId
+            range:
+              - accountId
+      - name: sp-mood
+        attributes:
+          retroId:
+            type: string
+          projectId:
+            type: string
+          accountId:
+            type: string
+          createdAt:
+            type: float
+          version:
+            type: integer
+          updatedAt:
+            type: float
+          doc:
+            type: any
+        indexes:
+          - name: by-retro
+            partition:
+              - retroId
+            range:
+              - accountId
+      - name: sp-action
+        attributes:
+          projectId:
+            type: string
+          retroId:
+            type: string
+          createdAt:
+            type: float
+          status:
+            type: string
+          version:
+            type: integer
+          updatedAt:
+            type: float
+          doc:
+            type: any
+        indexes:
+          - name: by-project
+            partition:
+              - projectId
+            range:
+              - createdAt
+          - name: by-retro
+            partition:
+              - retroId
+            range:
+              - createdAt
+      - name: sp-template
+        attributes:
+          projectId:
+            type: string
+          createdAt:
+            type: float
+          version:
+            type: integer
+          updatedAt:
+            type: float
+          doc:
+            type: any
+        indexes:
+          - name: by-project
+            partition:
+              - projectId
+            range:
+              - createdAt
+      # --- Legacy (do not use, do not remove) -------------------------------------------
+      # The retro-* entities were deployed once to `development` with 32-bit integer
+      # timestamps, which can't hold epoch ms. Forge forbids deleting a deployed entity or
+      # attribute, so they stay declared (empty, unused). The app uses the sp-* entities above.
+      - name: retro-board
+        attributes:
+          projectId:
+            type: string
+          createdAt:
+            type: integer
+          status:
+            type: string
+          titleLower:
+            type: string
+          version:
+            type: integer
+          updatedAt:
+            type: integer
+          doc:
+            type: any
+        indexes:
+          - name: by-project
+            partition:
+              - projectId
+            range:
+              - createdAt
+      - name: retro-card
+        attributes:
+          retroId:
+            type: string
+          createdAt:
+            type: integer
+          version:
+            type: integer
+          updatedAt:
+            type: integer
+          doc:
+            type: any
+        indexes:
+          - name: by-retro
+            partition:
+              - retroId
+            range:
+              - createdAt
+      - name: retro-group
+        attributes:
+          retroId:
+            type: string
+          createdAt:
+            type: integer
+          version:
+            type: integer
+          updatedAt:
+            type: integer
+          doc:
+            type: any
+        indexes:
+          - name: by-retro
+            partition:
+              - retroId
+            range:
+              - createdAt
+      - name: retro-ballot
+        attributes:
+          retroId:
+            type: string
+          accountId:
+            type: string
+          version:
+            type: integer
+          updatedAt:
+            type: integer
+          doc:
+            type: any
+        indexes:
+          - name: by-retro
+            partition:
+              - retroId
+            range:
+              - accountId
+      - name: retro-mood
+        attributes:
+          retroId:
+            type: string
+          projectId:
+            type: string
+          accountId:
+            type: string
+          createdAt:
+            type: integer
+          version:
+            type: integer
+          updatedAt:
+            type: integer
+          doc:
+            type: any
+        indexes:
+          - name: by-retro
+            partition:
+              - retroId
+            range:
+              - accountId
+      - name: retro-action
+        attributes:
+          projectId:
+            type: string
+          retroId:
+            type: string
+          createdAt:
+            type: integer
+          status:
+            type: string
+          version:
+            type: integer
+          updatedAt:
+            type: integer
+          doc:
+            type: any
+        indexes:
+          - name: by-project
+            partition:
+              - projectId
+            range:
+              - createdAt
+          - name: by-retro
+            partition:
+              - retroId
+            range:
+              - createdAt
+      - name: retro-template
+        attributes:
+          projectId:
+            type: string
+          createdAt:
+            type: integer
+          version:
+            type: integer
+          updatedAt:
+            type: integer
+          doc:
+            type: any
+        indexes:
+          - name: by-project
+            partition:
+              - projectId
+            range:
+              - createdAt
+  id: ari:cloud:ecosystem::app/55f2b1e9-72d8-4386-a29c-b021e0456589

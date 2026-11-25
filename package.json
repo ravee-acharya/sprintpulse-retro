@@ -1,0 +1,43 @@
+{
+  "name": "sprintpulse-retro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SprintPulse Retro - agile retrospectives for Jira Cloud, built on Atlassian Forge (Custom UI).",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "postinstall": "npm --prefix static/retro-ui ci",
+    "dev:ui": "npm --prefix static/retro-ui run dev",
+    "build": "npm --prefix static/retro-ui run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && npm --prefix static/retro-ui run typecheck",
+    "lint": "eslint . --max-warnings 0",
+    "lint:forge": "node scripts/forge-lint-offline.cjs",
+    "lint:forge:selftest": "node -e \"process.env.SELFTEST_EXPECT_ERRORS=1;require('./scripts/forge-lint-offline.cjs')\"",
+    "validate:manifest": "node scripts/validate-manifest.cjs",
+    "test": "vitest run",
+    "security": "semgrep scan --config .semgrep.yml --severity ERROR --error --metrics off --quiet src static/retro-ui/src",
+    "security:advisory": "semgrep scan --config .semgrep.yml --metrics off --quiet src static/retro-ui/src || true",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build && npm run validate:manifest && npm run lint:forge",
+    "ci": "npm run validate:manifest && forge lint --environment development && npm run typecheck && npm test && npm run lint && npm run lint:forge && npm run build && npm run security",
+    "forge:lint": "forge lint",
+    "deploy": "npm run check && forge deploy -e development --non-interactive",
+    "tunnel": "forge tunnel"
+  },
+  "dependencies": {
+    "@forge/api": "^8.5.1",
+    "@forge/kvs": "^2.1.3",
+    "@forge/realtime": "^1.0.3",
+    "@forge/resolver": "^2.0.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.0.0",
+    "eslint": "^10.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.74.0",
+    "vitest": "^5.1.1",
+    "yaml": "^2.9.1"
+  }
+}

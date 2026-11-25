@@ -1,0 +1,200 @@
+name: Deploy SprintPulse Retro
+
+# Same pipeline shape as ravee-acharya/worklog-report:
+#   push to main      -> verify -> deploy + install/upgrade on the development site
+#   manual dispatch   -> verify -> deploy to development OR production (production
+#                        waits for the `production` GitHub Environment's reviewers)
+# Differences from worklog-report, on purpose:
+#   * This is a Custom UI app: static/retro-ui/dist is not committed, so every deploy
+#     job builds it (`npm run build`) before `forge deploy`.
+#   * No internal-clone job: that exists in worklog-report only because its Marketplace
+#     app is licensed. SprintPulse has no licensed edition (yet).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Environment to deploy after tests pass"
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
+      approve_major_version:
+        description: "Approve a MAJOR version upgrade. Existing installs will NOT auto-update - each site admin must upgrade by hand. Leave off unless you intend this."
+        required: false
+        default: false
+        type: boolean
+
+env:
+  # Pinned deliberately (same as worklog-report): an unpinned CLI silently moved to a
+  # release that changed non-interactive behaviour and broke every run. Bump on purpose,
+  # after reading the release notes.
+  FORGE_CLI_VERSION: "15.0.0"
+
+  FORGE_EMAIL: ${{ secrets.FORGE_EMAIL }}
+  FORGE_API_TOKEN: ${{ secrets.FORGE_API_TOKEN }}
+
+  # The development environment is installed on one site only - it exists to verify
+  # changes, not to serve anyone.
+  FORGE_DEV_SITE: dashtech.atlassian.net
+
+  # Space-separated sites whose PRODUCTION installation this pipeline owns and upgrades.
+  # Empty until the app is first installed from the production environment; then list
+  # those sites here (e.g. "dashtech.atlassian.net").
+  FORGE_PROD_SITES: ""
+
+jobs:
+  # Validates the code the same way local development does: manifest checks, forge lint
+  # (real, server-side), type-check, tests, ESLint, offline scope lint, UI build, and the
+  # static security scan.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            static/retro-ui/package-lock.json
+
+      # Root postinstall runs `npm ci` for static/retro-ui too.
+      - run: npm ci
+
+      # `npm run security` shells out to semgrep, a Python tool outside the npm tree.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install semgrep
+
+      # forge lint and the offline validators (scripts/*.cjs) use the global Forge CLI.
+      - run: npm install -g @forge/cli@"$FORGE_CLI_VERSION"
+
+      # First forge command shows an interactive analytics opt-in prompt, which crashes a
+      # non-TTY runner. Answer it up front.
+      - run: forge settings set usage-analytics false
+
+      - name: Run full validation gate
+        run: npm run ci
+
+  # Every push to main auto-deploys to development. No approval gate - this environment
+  # is for verification, not for real users.
+  deploy-development:
+    needs: verify
+    if: github.event_name == 'push' || github.event.inputs.target == 'development'
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            static/retro-ui/package-lock.json
+
+      - run: npm ci
+
+      # Install the CLI explicitly and call `forge` directly. Do NOT use `npx forge`: the
+      # bare npm name `forge` is an unrelated package.
+      - run: npm install -g @forge/cli@"$FORGE_CLI_VERSION"
+
+      - run: forge settings set usage-analytics false
+
+      # Custom UI resource (manifest: static/retro-ui/dist) is built, not committed.
+      - name: Build Custom UI
+        run: npm run build
+
+      - name: Deploy to development
+        run: forge deploy --environment development --non-interactive
+
+      # `forge deploy` covers code-only changes. New scopes need the install upgraded.
+      # `--upgrade` fails if the install was removed, so fall back to a fresh install;
+      # together the step is idempotent. --confirm-scopes auto-grants new permissions in
+      # development only.
+      - name: Install or upgrade development installation
+        run: |
+          forge install --upgrade --non-interactive --confirm-scopes \
+            --site "$FORGE_DEV_SITE" --product jira --environment development \
+          || forge install --non-interactive --confirm-scopes \
+            --site "$FORGE_DEV_SITE" --product jira --environment development
+
+  # Production only deploys from a manual workflow run, and only after the `production`
+  # GitHub Environment's required reviewers approve it (Settings -> Environments ->
+  # production).
+  deploy-production:
+    needs: verify
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'production'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            static/retro-ui/package-lock.json
+
+      - run: npm ci
+
+      - run: npm install -g @forge/cli@"$FORGE_CLI_VERSION"
+
+      - run: forge settings set usage-analytics false
+
+      - name: Build Custom UI
+        run: npm run build
+
+      # A manifest change that forces a major version is never approved implicitly:
+      # existing installations stop auto-updating. It has to be chosen at dispatch time.
+      - name: Deploy to production
+        run: |
+          if [ "${{ inputs.approve_major_version }}" = "true" ]; then
+            echo "::warning::Approving MAJOR_VERSION_RULE - existing installs will not auto-update until each site admin upgrades."
+            forge deploy --environment production --non-interactive --approve MAJOR_VERSION_RULE
+          else
+            forge deploy --environment production --non-interactive
+          fi
+
+      # Upgrades every listed production site. Deliberately omits --confirm-scopes: if the
+      # manifest gained scopes, this fails instead of auto-granting permissions on a live
+      # site, and a Jira admin consents deliberately. Every site is attempted; the job
+      # fails at the end if any upgrade failed, so nothing is left half-migrated silently.
+      - name: Upgrade production installations
+        run: |
+          if [ -z "$FORGE_PROD_SITES" ]; then
+            echo "::notice::FORGE_PROD_SITES is empty - production code is deployed; no installations to upgrade."
+            exit 0
+          fi
+          failed=""
+          for site in $FORGE_PROD_SITES; do
+            echo "::group::Upgrading $site"
+            out=$(forge install --upgrade --non-interactive \
+                    --site "$site" --product jira --environment production 2>&1) && ok=1 || ok=0
+            echo "$out"
+            if [ "$ok" = "1" ]; then
+              echo "$site is up to date."
+            elif echo "$out" | grep -qi "Could not find an installation"; then
+              echo "::warning::$site has no production installation of this app - remove it from FORGE_PROD_SITES if that is expected."
+            else
+              echo "::error::Upgrade failed for $site - it is still on its previous version."
+              failed="$failed $site"
+            fi
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::Production code is deployed, but these installations were not upgraded:$failed"
+            echo "A scope change needs a Jira admin on each site to consent (see README.md)."
+            exit 1
+          fi
+          echo "All production installations handled."

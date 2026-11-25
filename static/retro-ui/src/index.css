@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* Brand tokens. Surface/text tokens map onto Atlassian design tokens when running
+   inside Jira, with fallbacks for the local mock preview. */
+@theme {
+  --color-brand-50: #f3f0ff;
+  --color-brand-100: #e5dfff;
+  --color-brand-500: #6554c0;
+  --color-brand-600: #5243aa;
+  --color-brand-700: #403294;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+:root {
+  --sp-surface: var(--ds-surface, #ffffff);
+  --sp-surface-sunken: var(--ds-surface-sunken, #f7f8f9);
+  --sp-text: var(--ds-text, #172b4d);
+  --sp-text-subtle: var(--ds-text-subtle, #44546f);
+  --sp-border: var(--ds-border, #dcdfe4);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--sp-surface);
+  color: var(--sp-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------- */
+/* Board themes (background imagery is CSS-only - nothing external) */
+/* ---------------------------------------------------------------- */
+.sp-theme {
+  background-attachment: local;
+}
+.sp-theme-aurora {
+  background: radial-gradient(1200px 500px at 10% -10%, #d9f7ec 0%, transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, #e6e0ff 0%, transparent 55%), #f7f8fb;
+}
+.sp-theme-sunset {
+  background: radial-gradient(1000px 500px at 0% 0%, #ffe1d1 0%, transparent 60%),
+    radial-gradient(800px 500px at 100% 10%, #ffd6e7 0%, transparent 55%), #fff9f5;
+}
+.sp-theme-ocean {
+  background: radial-gradient(1000px 500px at 20% -10%, #d4ecff 0%, transparent 60%),
+    radial-gradient(800px 400px at 100% 100%, #cdf3f5 0%, transparent 60%), #f5fbff;
+}
+.sp-theme-forest {
+  background: radial-gradient(1000px 500px at 0% 0%, #dcf5d9 0%, transparent 60%),
+    radial-gradient(800px 500px at 100% 20%, #eef7d4 0%, transparent 55%), #f7fbf5;
+}
+.sp-theme-sailboat {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='60' viewBox='0 0 240 60'%3E%3Cpath d='M0 30 Q30 10 60 30 T120 30 T180 30 T240 30' fill='none' stroke='%2393c5fd' stroke-opacity='.35' stroke-width='2'/%3E%3C/svg%3E")
+      repeat-x bottom / 240px 60px,
+    linear-gradient(180deg, #e0f2fe 0%, #f0f9ff 60%, #dbeafe 100%);
+}
+.sp-theme-midnight {
+  background: radial-gradient(900px 500px at 10% 0%, #e0e7ff 0%, transparent 60%), linear-gradient(180deg, #eef2ff, #f8fafc);
+}
+.sp-theme-paper {
+  background: repeating-linear-gradient(0deg, transparent 0 27px, #eef1f5 27px 28px), #fdfcf9;
+}
+
+/* Masked (private brainstorm) card placeholder */
+.sp-masked-line {
+  background: linear-gradient(90deg, #cbd5e1 0%, #e2e8f0 50%, #cbd5e1 100%);
+  background-size: 200% 100%;
+  animation: sp-shimmer 2.4s linear infinite;
+  filter: blur(1.5px);
+}
+@keyframes sp-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Sticker animations */
+@keyframes sp-bounce { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
+@keyframes sp-shake { 0%, 100% { transform: rotate(0) } 25% { transform: rotate(-12deg) } 75% { transform: rotate(12deg) } }
+@keyframes sp-tilt { 0%, 100% { transform: rotate(-6deg) } 50% { transform: rotate(6deg) } }
+@keyframes sp-pop { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.25) } }
+@keyframes sp-flicker { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .75; transform: scale(1.08) } }
+@keyframes sp-launch { 0% { transform: translate(0, 4px) } 50% { transform: translate(4px, -6px) } 100% { transform: translate(0, 4px) } }
+@keyframes sp-float { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+.sp-anim-bounce { animation: sp-bounce 1s ease-in-out infinite; display: inline-block }
+.sp-anim-shake { animation: sp-shake .6s ease-in-out infinite; display: inline-block }
+.sp-anim-tilt { animation: sp-tilt 1.6s ease-in-out infinite; display: inline-block }
+.sp-anim-pop { animation: sp-pop .9s ease-in-out infinite; display: inline-block }
+.sp-anim-flicker { animation: sp-flicker .5s ease-in-out infinite; display: inline-block }
+.sp-anim-launch { animation: sp-launch 1.2s ease-in-out infinite; display: inline-block }
+.sp-anim-float { animation: sp-float 2s ease-in-out infinite; display: inline-block }
+
+@keyframes sp-in { from { opacity: 0; transform: translateY(4px) scale(.98) } to { opacity: 1; transform: none } }
+.sp-enter { animation: sp-in .18s ease-out }
+
+@media (prefers-reduced-motion: reduce) {
+  [class*='sp-anim-'], .sp-masked-line, .sp-enter { animation: none !important }
+}
